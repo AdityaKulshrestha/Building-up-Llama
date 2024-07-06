@@ -1,4 +1,4 @@
 torch 
 sentencepiece 
 tqdm 
-
+numpy 

@@ -26,8 +26,8 @@ class LLama:
             print(f"Loaded checkpoint in {(time.time() - prev_time):.2f}s")
             prev_time = time.time() 
 
-        with open(Path(checkpoint_dir)/ "params.json", "r") as f: 
-            params = json.load(f.read())
+        with open(Path(checkpoint_dir)/"params.json", "r") as f: 
+            params = json.loads(f.read())
 
         model_args: ModelArgs = ModelArgs(
                 max_seq_len=max_seq_len, 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     ] 
 
     model = LLama.build(
-        checkpoints_dir = 'model_dir/', 
+        checkpoint_dir = 'model_dir/', 
         tokenizer_path = 'tokenizer.model', 
         load_model = True, 
         max_seq_len=1024, 
