@@ -83,7 +83,7 @@ class LLama:
 
         eos_reached = torch.tensor([False] * batch_size, device = device)
         prompt_tokens_mask = tokens != pad_id   # True if the token is a prompt token, False otherwise 
-        for cur_pos in tqdm(range(1, total_len), device = device):
+        for cur_pos in tqdm(range(1, total_len), desc = "Generating tokens"):
             with  torch.no_grad():
                 logits = self.model.forward(tokens[:, cur_pos-1:cur_pos], cur_pos)
             
