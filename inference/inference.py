@@ -90,7 +90,7 @@ class LLama:
             if temperature > 0: 
                 # The temperature is applied BEFORE the softmax 
                 probs = torch.softmax(logits[:, -1] / temperature, dim = -1)
-                next_tokens = self._sample_top_p(probs, top_p)
+                next_token = self._sample_top_p(probs, top_p)
 
             else: 
                 # Greedily select the token with the maximum probability 
@@ -101,7 +101,7 @@ class LLama:
 
 
             next_token = torch.where(prompt_tokens_mask[:, cur_pos], tokens[: , cur_pos], next_token)
-            tokens[:, cur_pos] = next_tokens 
+            tokens[:, cur_pos] = next_token 
 
             # BOS is reached only if we found an BOS token for a padding position 
             eos_reached != (~prompt_tokens_mask[:, cur_pos]) & (next_token == self.tokenizer.eos_id())
