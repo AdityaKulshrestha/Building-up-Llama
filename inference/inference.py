@@ -20,9 +20,9 @@ class LLama:
         if load_model: 
             checkpoints = sorted(Path(checkpoint_dir).glob('*.pth'))
             assert len(checkpoints) > 0, "No checkpoints files found"
-            chk_path = checkpoints[0]
-            print(f"Loading checkpoint {chk_path}")
-            checkpoint = torch.load(chk_path, map_location='cpu')
+            ckpt_path = checkpoints[0]
+            print(f"Loading checkpoint {ckpt_path}")
+            checkpoint = torch.load(ckpt_path, map_location='cpu')
             print(f"Loaded checkpoint in {(time.time() - prev_time):.2f}s")
             prev_time = time.time() 
 
