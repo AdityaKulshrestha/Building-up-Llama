@@ -1,4 +1,4 @@
-from typing import Optional 
+from typing import Optional, List  
 import torch 
 import time 
 from pathlib import Path 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     ] 
 
     model = LLama.build(
-        checkpoints_dir = 'llama-2-7b/', 
+        checkpoints_dir = 'model_dir/', 
         tokenizer_path = 'tokenizer.model', 
         load_model = True, 
         max_seq_len=1024, 
