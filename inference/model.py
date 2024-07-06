@@ -101,6 +101,8 @@ class SelfAttention(nn.Module):
         self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads 
         # Indicates the number of heads for the Queries 
         self.n_heads_q = args.n_heads
+        # Indicates how many times the Keys and Values should be repeated 
+        self.n_rep = self.n_heads_q // self.n_kv_heads
         # Indicates the dimension of each head 
         self.head_dim = args.dim // args.n_heads 
 
