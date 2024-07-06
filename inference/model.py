@@ -50,7 +50,7 @@ def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, t
 
 def apply_rotatory_embeddings(x: torch.Tensor, freqs_complex: torch.Tensor, device: str): 
     # (B, Seq_Len, H, Head_Dim)
-    x_complex = torch.view_as_complex(x.float().reshape(x.shape[:-1], -1, 2)) 
+    x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2)) 
     # (Seq_Len, Head_Dim / 2) -> (1, Seq_Len, 1, Head_Dim / 2)
     freqs_complex = freqs_complex.unsqueeze(0).unsqueeze(2)
     x_rotated = x_complex.unsqueeze(0).unsqueeze(2) 
