@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
     model = LLama.build(
         checkpoint_dir = 'model_dir/', 
-        tokenizer_path = 'model_dir/tokenizer.model', 
+        tokenizer_path = 'model_dir\tokenizer.model', 
         load_model = True, 
         max_seq_len=1024, 
         max_batch_size = len(prompts), 
