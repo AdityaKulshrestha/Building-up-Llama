@@ -24,7 +24,7 @@ class ModelArgs:
     device: str = None 
 
 
-def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, theta: 10000.0):
+def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, theta: float = 10000.0):
     # As written in the paper, the dimension of the embedding must be even
     assert head_dim % 2 == 0, "Dimension must be divisible by 2" 
     # Build the theta parameters 
