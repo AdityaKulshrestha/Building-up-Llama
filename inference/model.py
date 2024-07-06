@@ -81,7 +81,7 @@ class RMSNorm(nn.Module):
         super().__init__() 
         self.eps = eps 
         # The gamma parameter 
-        self.weigth = nn.Parameter(torch.ones(dim)) 
+        self.weight = nn.Parameter(torch.ones(dim)) 
 
     def _norm(self, x: torch.Tensor): 
         # (B, Seq_Len, Dim) * (B, Seq_Len, 1) = (B, Seq_Len, Dim)
@@ -90,7 +90,7 @@ class RMSNorm(nn.Module):
     
     def forward(self, x: torch.Tensor):
         # (Dim) * (B, Seq_Len, Dim) = (B, Seq_Len, Dim)
-        return self.weigth * self._norm(x.float()).type_as(x)
+        return self.weight * self._norm(x.float()).type_as(x)
     
 
 class SelfAttention(nn.Module): 
