@@ -1,5 +1,6 @@
 import os 
 import torch 
+import time 
 import numpy as np
 import torch.nn as nn 
 from tqdm import tqdm 
@@ -11,13 +12,13 @@ from datasets import load_dataset
 
 
 # hyperparameters 
-batch_size = 128 
+batch_size = 64 
 block_size = 512        # Max context length OR sequence length 
-max_iters = 50 
-eval_interval = 5 
+max_iters = 4
+eval_interval = 2 
 learning_rate = 3e-4 
 device = torch.device('hpu')
-eval_iters = 500
+eval_iters = 2
 n_embd = 2048 
 n_head = 6 
 n_layer = 6 
@@ -33,12 +34,16 @@ torch.manual_seed(1337)
 
 # Loaded the tokenizer 
 
-tokenizer = AutoTokenizer.from_pretrained('sarvamai/OpenHathi-7B-Hi-v0.1-Base')
+tokenizer = AutoTokenizer.from_pretrained('LingoIITGN/ganga-1b')
 bos_token = tokenizer.bos_token
 eos_token = tokenizer.eos_token
 vocab_size = tokenizer.vocab_size
 
 
+
+def get_batch_size(length, batch_length, cntx_len):
+    total_batches = int(length / (batch_length*cntx_len))
+    return total_batches
 
 # data loading 
 def get_batch(split): 
@@ -46,19 +51,23 @@ def get_batch(split):
 
     if split=='train': 
         data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
 
     else: 
         data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
 
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
-    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
+        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
 
+
+    ix = torch.randint(len(data) - block_size, (len(data)//block_size,))
+    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
+    x = x[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
+    x = x.view(-1, batch_size, block_size)
+    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
+    y = y[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
+    y = y.view(-1, batch_size, block_size)
     x, y = x.to(device), y.to(device)
     return x,y 
-
-
-X, Y = get_batch('train')
 
 
 @torch.no_grad()
@@ -66,11 +75,14 @@ def estimate_loss():
     out = {}
     model.eval() 
     for split in ['train', 'val']:
-        losses = torch.zeros(eval_iters)
-        for k in range(eval_iters): 
-            X, Y = get_batch(split) 
-            logits, loss = model(X, Y)
-            losses[k] = loss.item() 
+        X, Y = get_batch(split) 
+        total_batches = X.shape[0] 
+        losses = torch.zeros(total_batches)
+        curr = 0
+        for x_i, y_i in tqdm(zip(X, Y), total=total_batches): 
+            logits, loss = model(x_i, y_i)
+            losses[curr] = loss.item() 
+            curr += 1
         out[split] = losses.mean() 
     model.train()
     return out 
@@ -222,37 +234,42 @@ class GPTLanguageModel(nn.Module):
         return idx.cpu() 
     
 
-model = GPTLanguageModel() 
-m = model.to(device) 
-# print the number of parameters in the model 
-print(sum(p.numel() for p in m.parameters())/1e6, 'million parameters')
+if __name__ == '__main__':
+    model = GPTLanguageModel() 
+    m = model.to(device) 
+    # print the number of parameters in the model 
+    print(f"Number of Parameters in the model: {sum(p.numel() for p in m.parameters())/1e6} Million parameters")
 
 
-# create a pytorch optimizer 
-optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate) 
+    # create a pytorch optimizer 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate) 
+
+    start_time = time.time()
+    for iter in range(max_iters): 
 
 
-for iter in range(max_iters): 
 
-    # every once in a while evaluate the loss on train and val sets 
-    if iter % eval_interval == 0 or iter == max_iters -1: 
-        losses = estimate_loss() 
-        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+        # sample a batch of data 
+        xb, yb = get_batch('train')
+
+        for x_i, y_i in tqdm(zip(xb, yb), total=xb.shape[0]):
+            # evaluate the loss
+            logits, loss = model(x_i, y_i) 
+            optimizer.zero_grad(set_to_none = True) 
+
+            loss.backward() 
+            htcore.mark_step()
+
+            optimizer.step() 
+            htcore.mark_step()
+
+        # every once in a while evaluate the loss on train and val sets 
+        if iter % eval_interval == 0 or iter == max_iters -1: 
+            losses = estimate_loss() 
+            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
 
-    # sample a batch of data 
-    xb, yb = get_batch('train')
 
-    # evaluate the loss = 
-    logits, loss = model(xb, yb) 
-    optimizer.zero_grad(set_to_none = True) 
-
-    loss.backward() 
-    htcore.mark_step()
-
-    optimizer.step() 
-    htcore.mark_step()
-
-device = torch.device('cpu')
-torch.save(model.state_dict(), 'hindi_llama.pth', device=device)
+    torch.save(model.state_dict(), 'output_dir/hindi_llama.pth')
+    print(f"Time taken for training on {xb.shape[0]*xb.shape[1]*xb.shape[2]} tokens in {(time.time() - start_time)/60} minutes")
 
