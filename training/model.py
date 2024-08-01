@@ -65,10 +65,15 @@ LlamaForCausalLM(
 """
 
 # Model parameters 
-vocab_size = 30000 
-dim = 4096 
-num_layer = 16 
-rms_eps = 1e-6
+config = {
+'vocab_size': 30000,
+'dim': 4096, 
+'num_layer': 16, 
+'rms_eps': 1e-6,
+'heads': 32,
+'base': 10000, 
+'scaling_factor': 1.0
+}
 
 
 
@@ -76,9 +81,17 @@ class Attention(nn.Module):
 
     def __init__(self, ):
         super().__init__()
+        self.query = nn.Linear(n_embd, head_size, bias = False)
+        self.key = nn.Linear(n_embd, head_size, bias = False)
+        self.value = nn.Linear(n_embd, head_size, bias = False)
 
 
-    def forward():
+
+    def forward(self): #, query: torch.Tensor,key: torch.Tensor, value: torch.Tensor):
+        with ht.sdp_kernel(enable_recompute = True):
+            sdpa_out = FusedSDPA.apply(query, key, value, None, 0.1, True)
+            
+        return sdpa_out
 
 
 
@@ -103,33 +116,51 @@ class RMS(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self):
+    def __init__(self, dim: int = 4096, vocab_size: int = 32000):
         super().__init__()
-
         self.attention = Attention()
         self.mlp = MLP()
         self.attn_rms = RMS()
         self.ffn_rms = RMS()
 
 
-    def forward(self):
+    def forward(self, x: torch.Tensor):
+        return None
 
 
 
-class LLama(nn.Module):
+
+
+class Llama(nn.Module):
 
     def __init__(self, vocab_size: int = 30000, dim: int = 4096):
         super().__init__()
-
+        self.vocab_size = vocab_size 
+        self.dim = dim
         self.embeddings = nn.Embedding(self.vocab_size, self.dim)
 
 
-
+    def forward(self, x: torch.Tensor):
+        x = self.embeddings(x)
+        return x
 
 
 
 if __name__ == "__main__":
-    model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
-    print(model)
+
+    # x = torch.tensor((4, 8), dtype=torch.int64)
+    x = torch.randint(low=1, high=30000+1, size=(4, 8))
+    print(x)
+    model = Llama()
+    output = model(x)
+    print(output.shape)
+
+
+
+
+
+
+
+
 
     
