@@ -72,9 +72,60 @@ config = {
 'rms_eps': 1e-6,
 'heads': 32,
 'base': 10000, 
-'scaling_factor': 1.0
+'scaling_factor': 1.0,
+'seq_len': 512
 }
 
+
+class RotatoryPosEmbedding():
+
+    def __init__(self, head_dim: int= 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
+
+        self.head_dim = head_dim            # Unnecessary line
+
+    
+    @staticmethod
+    def precompute_rotatory_embd(head_dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
+
+        assert head_dim % 2 == 0, "Dimension must be divisible by two"
+
+        # Formula theta_i = 10000 * (-2(i-1) / dim) for i = [1, 2, .... dim/2]
+
+        theta_numerator = torch.arange(0, head_dim, 2).float()      # 1D Array (Head_dim / 2)
+
+        theta = 1.0 / (theta ** (theta_numerator / head_dim)).to(device) 
+
+        m = torch.arange(seq_len, device = device)       # Shape: (Seq_Len); 1D array
+        # (Seq_Len) * (Head_Dim / 2) = (Seq_Len, Head_Dim / 2)
+        freqs = torch.outer(m, theta).float()
+
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos = emb.cos()
+        sin = emb.sin()
+
+        return cos, sin
+
+    
+    def apply_customized_rope(q, k, cos, sin, position_ids):
+        if q.device.type == "hpu" and has_fused_rope:
+            # TODO: remove `.clone()` when it is fixed in SynapseAI
+            if k.dtype == torch.bfloat16:
+                return FusedRoPE.apply(
+                    q, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
+                ), FusedRoPE.apply(
+                    k,
+                    cos.unsqueeze(0).unsqueeze(0).clone().to(torch.bfloat16),
+                    sin.unsqueeze(0).unsqueeze(0).clone().to(torch.bfloat16),
+                    position_ids,
+                )
+            return FusedRoPE.apply(
+                q, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
+            ), FusedRoPE.apply(
+                k, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
+            )
+            
+
+     
 
 
 class Attention(nn.Module):
@@ -89,7 +140,7 @@ class Attention(nn.Module):
 
     def forward(self): #, query: torch.Tensor,key: torch.Tensor, value: torch.Tensor):
         with ht.sdp_kernel(enable_recompute = True):
-            sdpa_out = FusedSDPA.apply(query, key, value, None, 0.1, True)
+            sdpa_out = FusedSDPA.apply(self.query, self.key, self.value, None, 0.1, True)
             
         return sdpa_out
 
@@ -110,7 +161,7 @@ class RMS(nn.Module):
 
     
     def forward(self, x: torch.Tensor):
-        hidden_states = FusedRMSNorm.apply(hidden_states, self.weight, self.eps)
+        hidden_states = FusedRMSNorm.apply(x, self.weight, self.eps)
         return hidden_states
 
 
@@ -133,15 +184,18 @@ class Decoder(nn.Module):
 
 class Llama(nn.Module):
 
-    def __init__(self, vocab_size: int = 30000, dim: int = 4096):
+    def __init__(self, vocab_size: int = 30000, dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
         super().__init__()
         self.vocab_size = vocab_size 
         self.dim = dim
         self.embeddings = nn.Embedding(self.vocab_size, self.dim)
+        self.rotatory_embd = RotatoryPosEmbedding().precompute_rotatory_embd(dim, seq_len, device, theta)               # Introduced in transformer module so that we don't recompute everytime.
+        print(self.rotatory_embd)
 
 
     def forward(self, x: torch.Tensor):
         x = self.embeddings(x)
+        
         return x
 
 
@@ -154,6 +208,15 @@ if __name__ == "__main__":
     model = Llama()
     output = model(x)
     print(output.shape)
+
+
+    # rotatory = RotatoryPosEmbedding()
+    # cos, sin = rotatory.precompute_rotatory_embd()
+    # print(cos.shape, cos.dtype)
+    # print(sin.shape, sin.dtype)
+
+    # model = Llama()
+
 
 
 
