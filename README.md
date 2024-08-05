@@ -30,3 +30,13 @@ _where i is the index of the token and is the dimension of the embedding._
 Query Vector = $(W_{q}x_{m})e^{im\theta}$
 
 Key Vector = $(W_{k}x_{n})e^{in\theta}$
+
+
+
+## Checklist 
+
+- [x] Inference script for Llama 
+- [x] Model initialization
+- [x] Embedding Module 
+- [x] RMS Module 
+- [ ] Attention Module 
