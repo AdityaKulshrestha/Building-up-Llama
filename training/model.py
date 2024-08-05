@@ -80,14 +80,6 @@ config = {
 }
 
 
-# class RotatoryPosEmbedding():
-
-#     def __init__(self, head_dim: int= 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
-
-#         self.head_dim = head_dim            # Unnecessary line
-
-    
-#     @staticmethod
 def precompute_rotatory_embd(head_dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
 
     assert head_dim % 2 == 0, "Dimension must be divisible by two"
@@ -161,9 +153,20 @@ class Attention(nn.Module):
 
 class MLP(nn.Module): 
 
-    def __init__(self, ):
+    def __init__(self, dim: int = 4096, hidden_dim: int = 9800):
         super().__init__()
 
+        self.w1 = nn.Linear(dim, hidden_dim, bias=False) 
+        self.w2 = nn.Linear(hidden_dim, dim, bias = False) 
+        self.w3 = nn.Linear(dim, hidden_dim, bias = False) 
+
+    def forward(self, x: torch.Tensor): 
+        swish = F.silu(self.w1(x)) 
+        x_V = self.w3(x) 
+        x = swish * x_V 
+        x = self.w2(x) 
+        print(f"Final Shape of the tensor: {x.shape}")
+        return x
 
 class RMS(nn.Module): 
     """RMS Norm optimized for HPU"""
@@ -193,7 +196,7 @@ class Decoder(nn.Module):
         print("Shape after the RMS Norm : ", x.shape)
         x = x + self.attention.forward(x, cos, sin) 
         x = self.ffn_rms.forward(x)
-        # x = x + self.mlp.foward(x)
+        x = x + self.mlp.forward(x)
         return x 
 
 
