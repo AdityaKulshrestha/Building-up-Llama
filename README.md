@@ -39,4 +39,8 @@ Key Vector = $(W_{k}x_{n})e^{in\theta}$
 - [x] Model initialization
 - [x] Embedding Module 
 - [x] RMS Module 
-- [ ] Attention Module 
+- [x] Attention Module
+- [ ] Final Output Shape 
+- [ ] Correct expected shape in cross entropy 
+- [ ] Small scale training 
+ 

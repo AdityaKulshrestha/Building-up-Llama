@@ -135,12 +135,12 @@ class Attention(nn.Module):
 
     def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor): #, query: torch.Tensor,key: torch.Tensor, value: torch.Tensor):
         
-        print(f"Cos shape : {cos.shape} Sin Shape: {sin.shape} ")
+        # print(f"Cos shape : {cos.shape} Sin Shape: {sin.shape} ")
         
         xq = self.query(x) 
         xk = self.query(x) 
         xv = self.value(x)
-        print(f"Shape after qkv multiplication Query: {xq.shape} Key: {xk.shape} Value {xv.shape}")
+        # print(f"Shape after qkv multiplication Query: {xq.shape} Key: {xk.shape} Value {xv.shape}")
 
         xq, xk = apply_customized_rope(xq, xk, cos, sin, None) 
 
@@ -193,7 +193,7 @@ class Decoder(nn.Module):
 
     def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
         x = self.attn_rms(x)
-        print("Shape after the RMS Norm : ", x.shape)
+        # print("Shape after the RMS Norm : ", x.shape)
         x = x + self.attention.forward(x, cos, sin) 
         x = self.ffn_rms.forward(x)
         x = x + self.mlp.forward(x)
@@ -215,12 +215,13 @@ class Llama(nn.Module):
         self.embeddings = nn.Embedding(self.vocab_size, self.dim)
         self.decoder = Decoder()
         self.cos , self.sin = precompute_rotatory_embd(dim, seq_len, device, theta)               # Introduced in transformer module so that we don't recompute everytime.
+        self.lm_head = nn.Linear(dim, vocab_size)
 
 
     def forward(self, x: torch.Tensor):
         x = self.embeddings(x)
-        print(" Shape of input after embedding layer: ", x.shape)                       # Embedding Module Shape
         x = self.decoder.forward(x, self.cos, self.sin)
+        x = self.lm_head(x)
         return x
 
 
