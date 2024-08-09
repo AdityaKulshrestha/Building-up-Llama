@@ -75,8 +75,13 @@ def train():
         for x_i, y_i in tqdm(zip(xb, yb), total=xb.shape[0]):
 
             logits = model(x_i)
-            loss = F.cross_entropy(logits, y_i)
-            print("Final Shape", logits.shape)
+            print("Output Shape", logits.shape)
+            print("Target Size: ", y_i.shape) 
+            B, L, C = logits.shape
+            logits = logits.view(B*L, C)
+            targets = y_i.view(B*L)
+            print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
+            loss = F.cross_entropy(logits, targets)
             print("Final Loss: ", loss)
             
             optimizer.zero_grad(set_to_none = True) 
