@@ -165,7 +165,7 @@ class MLP(nn.Module):
         x_V = self.w3(x) 
         x = swish * x_V 
         x = self.w2(x) 
-        print(f"Final Shape of the tensor: {x.shape}")
+        # print(f"Final Shape of the tensor: {x.shape}")
         return x
 
 class RMS(nn.Module): 
@@ -231,7 +231,6 @@ if __name__ == "__main__":
     # x = torch.tensor((4, 8), dtype=torch.int64)
     x = torch.randint(low=1, high=30000+1, size=(4, 8))
     x = x.to(torch.device('hpu'))
-    print(x)
     model = Llama()
     output = model(x)
     print(output.shape)
