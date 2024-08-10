@@ -29,7 +29,7 @@ config = {
     'save_dir': './ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 64,
+    'batch_size': 32,
     'block_size': 512, 
     'lr': 3e-4
 }
@@ -73,6 +73,8 @@ def train():
         xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
         for x_i, y_i in tqdm(zip(xb, yb), total=xb.shape[0]):
+            
+            optimizer.zero_grad(set_to_none = True) 
 
             logits = model(x_i)
             print("Output Shape", logits.shape)
@@ -82,15 +84,16 @@ def train():
             targets = y_i.view(B*L)
             print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
             loss = F.cross_entropy(logits, targets)
-            print("Final Loss: ", loss)
+            print("Final Loss: ", loss.item())
             
-            optimizer.zero_grad(set_to_none = True) 
 
             loss.backward() 
             htcore.mark_step()
 
             optimizer.step() 
             htcore.mark_step()
+
+        torch.save(model.state_dict(), 'model.pth')
             
 
 
