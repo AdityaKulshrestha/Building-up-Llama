@@ -13,6 +13,11 @@ import habana_frameworks.torch.core as htcore
 import habana_frameworks.torch.utils.debug as htdebug
 from habana_frameworks.torch.hpex.optimizers import FusedAdamW
 
+
+os.environ['LOG_LEVEL_ALL'] = '0'
+os.environ['HABANA_LOGS']= '~/.habana_logs'
+
+
 logging.basicConfig(
     level=logging.DEBUG, 
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -40,6 +45,7 @@ config = {
 # Implement DDP 
 # Implement Autocast 
 # Store these get_batch and get_batch_size in utils
+# Implement optimized AdamW (giving error in graph build)
 
 def init_distributed_mode():
     world_size = 0 
@@ -70,7 +76,9 @@ def train_ddp():
     _, rank = init_distributed_mode()
     model = Llama().to(device)
 
-    optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
+    # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
+
 
     parameters = count_parameters(model)
     print(f"Total Parameters: {parameters} B")
@@ -87,11 +95,11 @@ def train_ddp():
             with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
                 logits = model(x_i) 
 
-            B, L, C = logits.shape
-            logits = logits.view(B*L, C) 
-            targets = y_i.view(B*L) 
+                B, L, C = logits.shape
+                logits = logits.view(B*L, C) 
+                targets = y_i.view(B*L) 
 
-            loss = F.cross_entropy(logits, targets) 
+                loss = F.cross_entropy(logits, targets) 
 
             loss.backward()
             htcore.mark_step()

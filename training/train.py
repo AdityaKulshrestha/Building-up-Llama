@@ -95,7 +95,7 @@ def train():
             htcore.mark_step()
 
             if i % config['save_freq'] == 0:
-                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{loss.item()}.pth')
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{loss.item():2f}.pth')
 
 
     
