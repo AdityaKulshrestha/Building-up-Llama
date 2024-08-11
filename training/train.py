@@ -26,12 +26,13 @@ config = {
     'train_iter': 1, 
     'eval_iter': 10, 
     'ckpt_iter': 20, 
-    'save_dir': './ckpt_dir', 
+    'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
     'batch_size': 32,
     'block_size': 512, 
-    'lr': 3e-4
+    'lr': 3e-4,
+    'save_freq': 10000
 }
 
 
@@ -72,13 +73,13 @@ def train():
     for iter in range(config['train_iter']):
         xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
-        for x_i, y_i in tqdm(zip(xb, yb), total=xb.shape[0]):
+        for i, (x_i, y_i) in enumerate(tqdm(zip(xb, yb), total=xb.shape[0])):
             
             optimizer.zero_grad(set_to_none = True) 
 
             logits = model(x_i)
-            print("Output Shape", logits.shape)
-            print("Target Size: ", y_i.shape) 
+            # print("Output Shape", logits.shape)
+            # print("Target Size: ", y_i.shape) 
             B, L, C = logits.shape
             logits = logits.view(B*L, C)
             targets = y_i.view(B*L)
@@ -93,7 +94,11 @@ def train():
             optimizer.step() 
             htcore.mark_step()
 
-        torch.save(model.state_dict(), 'model.pth')
+            if i % config['save_freq'] == 0:
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{loss.item()}.pth')
+
+
+    
             
 
 
