@@ -73,7 +73,7 @@ config = {
 'dim': 4096, 
 'num_layer': 16, 
 'rms_eps': 1e-6,
-'heads': 32,
+'n_heads': 32,
 'base': 10000, 
 'scaling_factor': 1.0,
 'seq_len': 512
@@ -125,28 +125,47 @@ def apply_customized_rope(q, k, cos, sin, position_ids):
 
 class Attention(nn.Module):
 
-    def __init__(self, n_embd: int, head_size: int):
+    def __init__(self,  dim: int, n_heads:int):
         super().__init__()
-        self.query = nn.Linear(n_embd, head_size, bias = False)                         # Need to change to multihead 
-        self.key = nn.Linear(n_embd, head_size, bias = False)
-        self.value = nn.Linear(n_embd, head_size, bias = False)
+
+        self.n_heads = n_heads
+        self.dim = dim 
+        self.head_dim = self.dim // self.n_heads
+        self.query = nn.Linear(dim, dim, bias = False)                         # Change the dimension, Add GQA 
+        self.key = nn.Linear(dim, dim, bias = False)
+        self.value = nn.Linear(dim, dim, bias = False)
+
+        self.head_dim = self.dim // self.n_heads
 
 
 
     def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor): #, query: torch.Tensor,key: torch.Tensor, value: torch.Tensor):
         
         # print(f"Cos shape : {cos.shape} Sin Shape: {sin.shape} ")
+        batch_size, seq_len, _ = x.size()
+
         
         xq = self.query(x) 
         xk = self.query(x) 
         xv = self.value(x)
         # print(f"Shape after qkv multiplication Query: {xq.shape} Key: {xk.shape} Value {xv.shape}")
 
-        xq, xk = apply_customized_rope(xq, xk, cos, sin, None) 
+
+        xq, xk = apply_customized_rope(xq, xk, cos, sin, None)
+
+        xq = xq.view(batch_size, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
+        xk = xk.view(batch_size, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
+        xv = xv.view(batch_size, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
+
+        print("This is the attention block,", xq.shape)
 
         with ht.sdp_kernel(enable_recompute = True):
             sdpa_out = FusedSDPA.apply(xq, xk, xv, None, 0.1, True)
             
+        sdpa_out = sdpa_out.transpose(1, 2).contiguous()
+        print("This is after transposing: ", sdpa_out.shape)
+        sdpa_out = sdpa_out.view(batch_size, seq_len, self.dim)
+        print("This is the final sdpa output: ", sdpa_out.shape)
         return sdpa_out
 
 
@@ -183,9 +202,9 @@ class RMS(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, dim: int = 4096, vocab_size: int = 32000, head_size: int = 32):
+    def __init__(self, dim: int = 4096, vocab_size: int = 32000, n_heads: int = 16):
         super().__init__()
-        self.attention = Attention(n_embd=dim, head_size = 4096)                                    # Change this head_size to the multihead size
+        self.attention = Attention(dim=dim, n_heads=n_heads)                                    # Change this head_size to the multihead size
         self.mlp = MLP()
         self.attn_rms = RMS()
         self.ffn_rms = RMS()
