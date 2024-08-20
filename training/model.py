@@ -71,7 +71,7 @@ LlamaForCausalLM(
 config = {
 'vocab_size': 30000,
 'dim': 4096, 
-'num_layer': 16, 
+'num_layer': 8, 
 'rms_eps': 1e-6,
 'n_heads': 32,
 'base': 10000, 
@@ -157,15 +157,15 @@ class Attention(nn.Module):
         xk = xk.view(batch_size, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
         xv = xv.view(batch_size, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
 
-        print("This is the attention block,", xq.shape)
+        # print("This is the attention block,", xq.shape)
 
         with ht.sdp_kernel(enable_recompute = True):
             sdpa_out = FusedSDPA.apply(xq, xk, xv, None, 0.1, True)
             
         sdpa_out = sdpa_out.transpose(1, 2).contiguous()
-        print("This is after transposing: ", sdpa_out.shape)
+        # print("This is after transposing: ", sdpa_out.shape)
         sdpa_out = sdpa_out.view(batch_size, seq_len, self.dim)
-        print("This is the final sdpa output: ", sdpa_out.shape)
+        # print("This is the final sdpa output: ", sdpa_out.shape)
         return sdpa_out
 
 
@@ -227,19 +227,25 @@ class Decoder(nn.Module):
 
 class Llama(nn.Module):
 
-    def __init__(self, vocab_size: int = 30000, dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0):
+    def __init__(self, vocab_size: int = 30000, dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0, n_layers: int = 8):
         super().__init__()
         self.vocab_size = vocab_size 
         self.dim = dim
         self.embeddings = nn.Embedding(self.vocab_size, self.dim)
-        self.decoder = Decoder()
+        # self.decoder = Decoder()
+        self.layers = nn.ModuleList(
+            [Decoder() for _ in range(n_layers)]
+        )
         self.cos , self.sin = precompute_rotatory_embd(dim, seq_len, device, theta)               # Introduced in transformer module so that we don't recompute everytime.
         self.lm_head = nn.Linear(dim, vocab_size)
 
 
     def forward(self, x: torch.Tensor):
         x = self.embeddings(x)
-        x = self.decoder.forward(x, self.cos, self.sin)
+        # print("This is after embedding: ", x.shape)
+        for layer in self.layers:
+            x = layer.forward(x, self.cos, self.sin)
+        # print("This is after decoder: ", x.shape)
         x = self.lm_head(x)
         return x
 
