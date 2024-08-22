@@ -221,10 +221,6 @@ class Decoder(nn.Module):
 
         
 
-
-
-
-
 class Llama(nn.Module):
 
     def __init__(self, vocab_size: int = 30000, dim: int = 4096, seq_len: int = 512, device: str = torch.device('hpu'), theta: float = 10000.0, n_layers: int = 8):

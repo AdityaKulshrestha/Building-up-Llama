@@ -29,7 +29,7 @@ config = {
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 32,
+    'batch_size': 4,
     'block_size': 512, 
     'lr': 3e-4,
     'save_freq': 10000
@@ -68,6 +68,7 @@ def get_batch(data_dir, split, batch_size, block_size, device):
 def train():
     model = Llama()
     model = model.to(config['device'])
+    print(sum(p.numel() for p in model.parameters())/1e6, 'million parameters')
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
 
     for iter in range(config['train_iter']):
@@ -83,7 +84,7 @@ def train():
             B, L, C = logits.shape
             logits = logits.view(B*L, C)
             targets = y_i.view(B*L)
-            print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
+            # print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
             loss = F.cross_entropy(logits, targets)
             print("Final Loss: ", loss.item())
             
