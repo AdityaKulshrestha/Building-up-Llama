@@ -4,17 +4,19 @@ from model import Llama
 import logging
 from tqdm import tqdm 
 from torch.nn import functional as F 
+import torch.multiprocessing as mp
 
 from torch.nn.parallel import DistributedDataParallel as DDP 
 
 from train import get_batch, get_batch_size
+import torch.distributed as dist
 
 import habana_frameworks.torch.core as htcore
 import habana_frameworks.torch.utils.debug as htdebug
 from habana_frameworks.torch.hpex.optimizers import FusedAdamW
 
 
-os.environ['LOG_LEVEL_ALL'] = '0'
+os.environ['LOG_LEVEL_ALL'] = '4'
 os.environ['HABANA_LOGS']= '~/.habana_logs'
 
 
@@ -49,6 +51,8 @@ config = {
 
 def init_distributed_mode():
     world_size = 0 
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
 
     import habana_frameworks.torch.distributed.hccl 
     from habana_frameworks.torch.distributed.hccl import initialize_distributed_hpu 
@@ -63,6 +67,17 @@ def init_distributed_mode():
 
     return world_size, rank
 
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    os.environ["ID"] = str(rank)
+    #distributed package for HCCL
+    import habana_frameworks.torch.distributed.hccl
+    dist.init_process_group(backend='hccl', rank=rank, world_size=world_size)
+
+def cleanup():
+    dist.destroy_process_group()
+
     # torch.distributed.
 
 
@@ -71,9 +86,10 @@ def count_parameters(model):
     return params/1000000000
 
 
-def train_ddp():
+def train_ddp(rank, world_size):
     device = torch.device('hpu')
-    _, rank = init_distributed_mode()
+    setup(rank, world_size)
+    # _, rank = init_distributed_mode()
     model = Llama().to(device)
 
     # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
@@ -113,10 +129,17 @@ def train_ddp():
                 torch.save(model.state_dict(), f'model_iter{i}_loss_{loss.item():2f}')
 
 
+def run_demo(demo_fn, world_size):
+    mp.spawn(demo_fn,
+             args=(world_size,),
+             nprocs=world_size,
+             join=True)
 
 
 if __name__ == "__main__": 
 
     # How to run 
     # mpirun --allow-run-as-root -np 2 python train_ddp.py
-    train_ddp()
+    world_size = 2
+    run_demo(train_ddp, world_size)    
+    # train_ddp()
