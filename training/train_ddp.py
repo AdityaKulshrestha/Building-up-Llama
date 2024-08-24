@@ -17,7 +17,7 @@ from habana_frameworks.torch.hpex.optimizers import FusedAdamW
 
 
 os.environ['LOG_LEVEL_ALL'] = '4'
-os.environ['HABANA_LOGS']= '~/.habana_logs'
+os.environ['HABANA_LOGS']= '.habana_logs'
 
 
 logging.basicConfig(
@@ -37,8 +37,8 @@ config = {
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 16,
-    'block_size': 512, 
+    'batch_size': 2,
+    'block_size': 128, 
     'lr': 3e-4,
     'save_freq': 10
 }

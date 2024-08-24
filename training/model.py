@@ -172,7 +172,7 @@ class Attention(nn.Module):
 
 class MLP(nn.Module): 
 
-    def __init__(self, dim: int = 4096, hidden_dim: int = 9800):
+    def __init__(self, dim: int = 4096, hidden_dim: int = 14336):
         super().__init__()
 
         self.w1 = nn.Linear(dim, hidden_dim, bias=False) 
@@ -202,7 +202,7 @@ class RMS(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, dim: int = 4096, vocab_size: int = 32000, n_heads: int = 16):
+    def __init__(self, dim: int = 4096, vocab_size: int = 30000, n_heads: int = 16):
         super().__init__()
         self.attention = Attention(dim=dim, n_heads=n_heads)                                    # Change this head_size to the multihead size
         self.mlp = MLP()
@@ -211,15 +211,14 @@ class Decoder(nn.Module):
 
 
     def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-        x = self.attn_rms(x)
+        # x = self.attn_rms(x)
         # print("Shape after the RMS Norm : ", x.shape)
-        x = x + self.attention.forward(x, cos, sin) 
-        x = self.ffn_rms.forward(x)
-        x = x + self.mlp.forward(x)
-        return x 
+        h = x + self.attention.forward(self.attn_rms(x), cos, sin) 
+        # x = self.ffn_rms.forward(h)
+        out = h + self.mlp.forward(self.ffn_rms.forward(h))
+        return out 
 
 
-        
 
 class Llama(nn.Module):
 

@@ -11,6 +11,9 @@ from model import Llama
 
 import logging
 
+os.environ['LOG_LEVEL_ALL'] = '4'
+os.environ['HABANA_LOGS']= '.habana_logs'
+
 logging.basicConfig(
     level=logging.DEBUG, 
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -30,9 +33,14 @@ config = {
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
     'batch_size': 4,
-    'block_size': 512, 
-    'lr': 3e-4,
-    'save_freq': 10000
+    'block_size': 128, 
+    'min_lr': 3e-5,
+    'max_lr': 3e-4,
+    'save_freq': 1000, 
+    'weight_decay': 1e-1, 
+    'beta1': 0.9, 
+    'beta2': 0.95, 
+    'vocab_size': 64128
 }
 
 
@@ -45,11 +53,11 @@ def get_batch(data_dir, split, batch_size, block_size, device):
     # We recreate np.memmap every batch to avoid a memory leak
     logger.info("Processing Dataset!")
     if split=='train': 
-        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(os.path.join(data_dir, 'train_sarvam.bin'), dtype=np.uint16, mode='r')
         total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440
 
     else: 
-        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(os.path.join(data_dir, 'val_sarvam.bin'), dtype=np.uint16, mode='r')
 
         total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
 
@@ -66,10 +74,12 @@ def get_batch(data_dir, split, batch_size, block_size, device):
 
 
 def train():
-    model = Llama()
+    model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
     model = model.to(config['device'])
-    print(sum(p.numel() for p in model.parameters())/1e6, 'million parameters')
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
+    print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr']) 
+    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=100, mode='exp_range')
 
     for iter in range(config['train_iter']):
         xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
@@ -78,15 +88,18 @@ def train():
             
             optimizer.zero_grad(set_to_none = True) 
 
+            # with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
             logits = model(x_i)
-            # print("Output Shape", logits.shape)
-            # print("Target Size: ", y_i.shape) 
             B, L, C = logits.shape
             logits = logits.view(B*L, C)
             targets = y_i.view(B*L)
             # print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
             loss = F.cross_entropy(logits, targets)
-            print("Final Loss: ", loss.item())
+            current_lr = scheduler.get_last_lr()
+            # print("Final Loss: ", loss.item())    
+
+            print(f'Learning Rate: {current_lr[0]:2f}')
+            print(f'Epoch {i + 1}, Final Loss: {loss.item():2f}')
             
 
             loss.backward() 
@@ -95,8 +108,20 @@ def train():
             optimizer.step() 
             htcore.mark_step()
 
-            if i % config['save_freq'] == 0:
-                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{loss.item():2f}.pth')
+            scheduler.step()
+
+            if i % config['save_freq'] == 0 and i!=0:
+                x_val, y_val = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+                for j, (x_i_val, y_i_val) in enumerate(tqdm(zip(x_val, y_val), total=x_val.shape[0])):
+                    logits = model(x_i_val)
+                    B, L, C = logits.shape
+                    logits = logits.view(B*L, C)
+                    targets = y_i_val.view(B*L)
+                    val_loss = F.cross_entropy(logits, targets)
+
+
+
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{val_loss.item():2f}.pth')
 
 
     

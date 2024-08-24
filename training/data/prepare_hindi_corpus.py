@@ -16,7 +16,8 @@ num_proc = 8
 
 num_proc_load_dataset = num_proc 
 
-model_id = 'LingoIITGN/ganga-1b'
+# model_id = 'LingoIITGN/ganga-1b'
+model_id = 'sarvamai/sarvam-2b-v0.5'
 dataset_name = 'ai4bharat/sangraha'
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 bos_token = tokenizer.bos_token
@@ -45,13 +46,25 @@ if __name__ == '__main__':
         num_proc = num_proc, 
     )
 
+
+    print("This is the length before: ", len(tokenized_dataset['train']))
+    print("This is the length before: ", len(tokenized_dataset['val']))
+
+    num_examples = 5000
+
+    tokenized_dataset['train'] = tokenized_dataset['train'].shuffle(seed=42).select(range(num_examples))
+    tokenized_dataset['val'] = tokenized_dataset['val'].shuffle(seed=42).select(range(num_examples))
+
+    print("This is the length before: ", len(tokenized_dataset['train']))
+    print("This is the length before: ", len(tokenized_dataset['val']))
+
     print(tokenized_dataset['train'])
     print(tokenized_dataset['train'][0])
     print(np.sum(tokenized_dataset['train']['len'], dtype=np.uint64))
 
     for split, dset in tokenized_dataset.items(): 
         arr_len = np.sum(dset['len'], dtype=np.uint64)
-        filename = os.path.join(os.path.dirname(__file__), f'{split}_sangrah.bin')
+        filename = os.path.join(os.path.dirname(__file__), f'{split}_sarvam.bin')
         dtype = np.uint16       # saving datatype and hence data 
         arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len), )
         total_batches = 1024 
