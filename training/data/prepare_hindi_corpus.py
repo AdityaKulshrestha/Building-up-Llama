@@ -47,16 +47,17 @@ if __name__ == '__main__':
     )
 
 
-    print("This is the length before: ", len(tokenized_dataset['train']))
-    print("This is the length before: ", len(tokenized_dataset['val']))
+    # Selecting only a subset of dataset 
+    # print("This is the length before: ", len(tokenized_dataset['train']))
+    # print("This is the length before: ", len(tokenized_dataset['val']))
 
-    num_examples = 5000
+    # num_examples = 5000
 
-    tokenized_dataset['train'] = tokenized_dataset['train'].shuffle(seed=42).select(range(num_examples))
-    tokenized_dataset['val'] = tokenized_dataset['val'].shuffle(seed=42).select(range(num_examples))
+    # tokenized_dataset['train'] = tokenized_dataset['train'].shuffle(seed=42).select(range(num_examples))
+    # tokenized_dataset['val'] = tokenized_dataset['val'].shuffle(seed=42).select(range(num_examples))
 
-    print("This is the length before: ", len(tokenized_dataset['train']))
-    print("This is the length before: ", len(tokenized_dataset['val']))
+    # print("This is the length before: ", len(tokenized_dataset['train']))
+    # print("This is the length before: ", len(tokenized_dataset['val']))
 
     print(tokenized_dataset['train'])
     print(tokenized_dataset['train'][0])
@@ -64,7 +65,7 @@ if __name__ == '__main__':
 
     for split, dset in tokenized_dataset.items(): 
         arr_len = np.sum(dset['len'], dtype=np.uint64)
-        filename = os.path.join(os.path.dirname(__file__), f'{split}_sarvam.bin')
+        filename = os.path.join(os.path.dirname(__file__), f'{split}.bin')
         dtype = np.uint16       # saving datatype and hence data 
         arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len), )
         total_batches = 1024 

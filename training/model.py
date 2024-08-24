@@ -202,7 +202,7 @@ class RMS(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, dim: int = 4096, vocab_size: int = 30000, n_heads: int = 16):
+    def __init__(self, dim: int = 4096, n_heads: int = 16):
         super().__init__()
         self.attention = Attention(dim=dim, n_heads=n_heads)                                    # Change this head_size to the multihead size
         self.mlp = MLP()
