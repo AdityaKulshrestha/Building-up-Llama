@@ -32,11 +32,11 @@ config = {
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 4,
+    'batch_size': 16,
     'block_size': 128, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
-    'save_freq': 1000, 
+    'save_freq': 10000, 
     'weight_decay': 1e-1, 
     'beta1': 0.9, 
     'beta2': 0.95, 
@@ -53,11 +53,11 @@ def get_batch(data_dir, split, batch_size, block_size, device):
     # We recreate np.memmap every batch to avoid a memory leak
     logger.info("Processing Dataset!")
     if split=='train': 
-        data = np.memmap(os.path.join(data_dir, 'train_sarvam.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
         total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440
 
     else: 
-        data = np.memmap(os.path.join(data_dir, 'val_sarvam.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
 
         total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
 
@@ -69,7 +69,7 @@ def get_batch(data_dir, split, batch_size, block_size, device):
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in tqdm(ix)])
     y = y[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
     y = y.view(-1, batch_size, block_size)
-    x, y = x.to(device), y.to(device)
+    # x, y = x.to(device), y.to(device)
     return x,y 
 
 
@@ -79,12 +79,14 @@ def train():
     print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr']) 
-    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=100, mode='exp_range')
+    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=1000, mode='exp_range')
 
     for iter in range(config['train_iter']):
         xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
         for i, (x_i, y_i) in enumerate(tqdm(zip(xb, yb), total=xb.shape[0])):
+            x_i, y_i = x_i.to(config['device']), y_i.to(config['device'])
+
             
             optimizer.zero_grad(set_to_none = True) 
 
@@ -111,17 +113,22 @@ def train():
             scheduler.step()
 
             if i % config['save_freq'] == 0 and i!=0:
-                x_val, y_val = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
-                for j, (x_i_val, y_i_val) in enumerate(tqdm(zip(x_val, y_val), total=x_val.shape[0])):
-                    logits = model(x_i_val)
-                    B, L, C = logits.shape
-                    logits = logits.view(B*L, C)
-                    targets = y_i_val.view(B*L)
-                    val_loss = F.cross_entropy(logits, targets)
+                x_val, y_val = get_batch(config['data_dir'], 'val', config['batch_size'], config['block_size'], config['device'])
+                total_validation_loss = 0
+                for _, (x_i_val, y_i_val) in enumerate(tqdm(zip(x_val, y_val), total=x_val.shape[0])):
+                    x_i_val, y_i_val = x_i_val.to(config['device']), y_i_val.to(config['device'])
+                    with torch.no_grad():
+                        logits = model(x_i_val)
+                        B, L, C = logits.shape
+                        logits = logits.view(B*L, C)
+                        targets = y_i_val.view(B*L)
+                        val_loss = F.cross_entropy(logits, targets)
+                        total_validation_loss += val_loss.item()
 
 
 
-                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{val_loss.item():2f}.pth')
+
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{total_validation_loss/x_val.shape[0]:2f}.pth')
 
 
     
