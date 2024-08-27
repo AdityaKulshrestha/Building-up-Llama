@@ -6,7 +6,7 @@ import habana_frameworks.torch.core as htcore
 
 
 # hyperparameters 
-batch_size = 64 
+batch_size = 32 
 block_size = 256        # Max context length OR sequence length 
 max_iters = 5000 
 eval_interval = 500 

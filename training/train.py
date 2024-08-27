@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 config = {
     'train_iter': 1, 
-    'eval_iter': 10, 
-    'ckpt_iter': 20, 
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
@@ -36,7 +34,7 @@ config = {
     'block_size': 128, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
-    'save_freq': 10000, 
+    'save_freq': 400000, 
     'weight_decay': 1e-1, 
     'beta1': 0.9, 
     'beta2': 0.95, 
