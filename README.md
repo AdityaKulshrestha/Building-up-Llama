@@ -1,9 +1,12 @@
-# Building up Llama
+# Mooshak
 
+![Mooshak](assests/mooshak.webp)
 
+Mooshak is a Large Language Model, written completely from sratch in Pytorch. The model is trained on a corpus of mix of Hindi and English Corpus. 
 
-
-## Architectural Modifications in Llama 
+## Architectural Modifications in Mooshak 
+Mooshak is mainly inspired from Llama Architecture and incorporates a custom layers and architecture. 
+The overall size of the model is ~ 2 Billion
 
 ### RoPE
 RoPE stands for Rotatory Positional Embedding. 
@@ -40,7 +43,10 @@ Key Vector = $(W_{k}x_{n})e^{in\theta}$
 - [x] Embedding Module 
 - [x] RMS Module 
 - [x] Attention Module
-- [ ] Final Output Shape 
-- [ ] Correct expected shape in cross entropy 
-- [ ] Small scale training 
+- [x] Final Output Shape 
+- [x] Correct expected shape in cross entropy 
+- [x] Small scale training 
+- [ ] Add support for DDP
+- [ ] Add automatic mixed precision
+- [ ] Add fine tuning script
  
