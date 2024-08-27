@@ -1,6 +1,8 @@
 # Mooshak
 
-![Mooshak](assests/mooshak.webp)
+<!-- ![Mooshak](assets/mooshak.webp) -->
+<img src="assets/mooshak.webp" alt="Mooshak" width="200" height="200">
+
 
 Mooshak is a Large Language Model, written completely from sratch in Pytorch. The model is trained on a corpus of mix of Hindi and English Corpus. 
 
