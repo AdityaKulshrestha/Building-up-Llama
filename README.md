@@ -1,7 +1,7 @@
 # Mooshak
 
-<div style="text-align: center;">
-    <img src="assets/mooshak.webp" alt="Mooshak" width="400" height="400">
+<div style="center">
+    <img src="assets/mooshak.webp" alt="Mooshak" width="350" height="350">
 </div>
 
 
