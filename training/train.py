@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 import habana_frameworks.torch.core as htcore
 from datasets import load_dataset
 from model import Llama 
+from habana_frameworks.torch.hpex.optimizers import FusedAdamW
 
 import logging
 
@@ -34,7 +35,7 @@ config = {
     'block_size': 128, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
-    'save_freq': 400000, 
+    'save_freq': 100000, 
     'weight_decay': 1e-1, 
     'beta1': 0.9, 
     'beta2': 0.95, 
@@ -75,9 +76,10 @@ def train():
     model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
     model = model.to(config['device'])
     print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
+    optimizer = FusedAdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr']) 
-    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=1000, mode='exp_range')
+    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
 
     for iter in range(config['train_iter']):
         xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
