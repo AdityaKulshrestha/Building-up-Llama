@@ -92,18 +92,35 @@ def train_ddp(rank, world_size):
     # _, rank = init_distributed_mode()
     model = Llama().to(device)
 
-    # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
+    optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
 
 
     parameters = count_parameters(model)
     print(f"Total Parameters: {parameters} B")
 
+    # Add layer here for pytorch data loader 
+    xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+
+
     if rank > -1:
         model = torch.nn.parallel.DistributedDataParallel(model)
 
+
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset1)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset2)
+
+        train_loader = torch.utils.data.DataLoader(
+            dataset1, batch_size=args.batch_size, sampler=train_sampler,
+            num_workers=12, pin_memory=True, drop_last=True)
+        test_loader = torch.utils.data.DataLoader(
+            dataset2, batch_size=args.batch_size, sampler=test_sampler,
+            num_workers=12, pin_memory=True, drop_last=True)
+
     for iter in range(config['train_iter']): 
-        xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+        # xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
         for i, (x_i, y_i) in enumerate(tqdm(zip(xb, yb), total=xb.shape[0])):
             optimizer.zero_grad(set_to_none=True) 
