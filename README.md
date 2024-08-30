@@ -50,8 +50,9 @@ Key Vector = $(W_{k}x_{n})e^{in\theta}$
 - [x] Final Output Shape 
 - [x] Correct expected shape in cross entropy 
 - [x] Small scale training 
-- [ ] Add FusedAdam 
+- [x] Add FusedAdam 
 - [ ] Add support for DDP
 - [ ] Add automatic mixed precision
 - [ ] Add fine tuning script
+- [ ] Add decoding strategies 
  

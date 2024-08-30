@@ -7,13 +7,15 @@ from torch.nn import functional as F
 import torch.multiprocessing as mp
 
 from torch.nn.parallel import DistributedDataParallel as DDP 
+from torch.utils.data import Dataset, DataLoader 
 
-from train import get_batch, get_batch_size
 import torch.distributed as dist
 
 import habana_frameworks.torch.core as htcore
 import habana_frameworks.torch.utils.debug as htdebug
 from habana_frameworks.torch.hpex.optimizers import FusedAdamW
+
+from utils import LoadTextCorpus
 
 
 os.environ['LOG_LEVEL_ALL'] = '4'
@@ -31,16 +33,18 @@ logger = logging.getLogger(__name__)
 
 # Config 
 config = {
+    'train_data': 'data/train.bin',
+    'val_data': 'data/val.bin',
     'train_iter': 1, 
     'eval_iter': 10, 
     'ckpt_iter': 20, 
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 2,
+    'batch_size': 16,
     'block_size': 128, 
     'lr': 3e-4,
-    'save_freq': 10
+    'save_freq': 1000
 }
 
 
@@ -92,15 +96,21 @@ def train_ddp(rank, world_size):
     # _, rank = init_distributed_mode()
     model = Llama().to(device)
 
-    optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
+    # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
 
 
     parameters = count_parameters(model)
     print(f"Total Parameters: {parameters} B")
 
     # Add layer here for pytorch data loader 
-    xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+    data_path = "data/train.bin"
+    seq_length = 128
+    batch_size = 16 
+
+    train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
+    val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
+
 
 
     if rank > -1:
@@ -108,21 +118,20 @@ def train_ddp(rank, world_size):
 
 
         train_sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset1)
-        test_sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset2)
+            train_dataset, num_replicas=world_size, rank=rank)
+        val_sampler = torch.utils.data.distributed.DistributedSampler(
+            val_dataset, num_replicas=world_size, rank=rank)
 
-        train_loader = torch.utils.data.DataLoader(
-            dataset1, batch_size=args.batch_size, sampler=train_sampler,
-            num_workers=12, pin_memory=True, drop_last=True)
-        test_loader = torch.utils.data.DataLoader(
-            dataset2, batch_size=args.batch_size, sampler=test_sampler,
-            num_workers=12, pin_memory=True, drop_last=True)
+        # dataloader = DataLoader(dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8)
+        train_loader = DataLoader(train_dataset, sampler = train_sampler, batch_size = config['batch_size'], num_workers=8, drop_last=True)
+        val_loader = DataLoader(val_dataset, sampler = val_sampler, batch_size = config['batch_size'], num_workers=8, drop_last = True)
+        
 
     for iter in range(config['train_iter']): 
-        # xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
-        for i, (x_i, y_i) in enumerate(tqdm(zip(xb, yb), total=xb.shape[0])):
+        for i, (x_i, y_i) in enumerate(train_loader):
+            x_i, y_i = x_i.to(config['device']), y_i.to(config['device'])
+
             optimizer.zero_grad(set_to_none=True) 
 
             with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
@@ -140,10 +149,12 @@ def train_ddp(rank, world_size):
             optimizer.step()
             htcore.mark_step()
 
+            print(f"Iter : {i} Loss: {loss.item()}")
 
-            if i % config['save_freq'] == 0: 
-                print(f"Iter : {i} Loss: {loss.item()}")
-                torch.save(model.state_dict(), f'model_iter{i}_loss_{loss.item():2f}')
+            if (i % config['save_freq'] == 0) and i!=0: 
+                torch.save(model.state_dict(), f'ckpt_dir/model_iter{i}_loss_{loss.item():2f}')
+
+        cleanup()
 
 
 def run_demo(demo_fn, world_size):
