@@ -36,18 +36,18 @@ config = {
     'train_data': 'data/train.bin',
     'val_data': 'data/val.bin',
     'train_iter': 1, 
-    'eval_iter': 10, 
-    'ckpt_iter': 20, 
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
     'batch_size': 16,
     'block_size': 128, 
-    'lr': 3e-4,
+    'min_lr': 3e-5,
+    'max_lr': 3e-4,
+    'weight_decay': 1e-1, 
+    'beta1': 0.9, 
+    'beta2': 0.95, 
     'save_freq': 1000, 
     'vocab_size': 64128, 
-    'device': torch.device('hpu')
-
 }
 
 
@@ -98,7 +98,8 @@ def train_ddp(rank, world_size):
     model = model.to(config['device'])
 
     # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
+    scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
 
     parameters = count_parameters(model)
     print(f"Total Parameters: {parameters} B")
