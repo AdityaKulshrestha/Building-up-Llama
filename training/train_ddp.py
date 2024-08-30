@@ -107,7 +107,7 @@ def train_ddp(rank, world_size):
     val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
 
     if rank > -1:
-        model = torch.nn.parallel.DistributedDataParallel(model)
+        model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
 
         train_sampler = torch.utils.data.distributed.DistributedSampler(
             train_dataset, num_replicas=world_size, rank=rank)
