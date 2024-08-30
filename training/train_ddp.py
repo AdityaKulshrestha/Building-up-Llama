@@ -51,9 +51,7 @@ config = {
 }
 
 
-# Implement DDP 
-# Implement Autocast 
-# Store these get_batch and get_batch_size in utils
+# Implement Autocast; Not working giving specific operation issue in SDPA GEMM; Not supported for bf16
 # Implement optimized AdamW (giving error in graph build)
 
 # Deprecated
@@ -88,7 +86,6 @@ def cleanup():
 
     # torch.distributed.
 
-
 def count_parameters(model):
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return params/1000000000
@@ -100,34 +97,23 @@ def train_ddp(rank, world_size):
     model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
     model = model.to(config['device'])
 
-
     # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
-
 
     parameters = count_parameters(model)
     print(f"Total Parameters: {parameters} B")
 
-    # Add layer here for pytorch data loader 
-    data_path = "data/train.bin"
-    seq_length = 128
-    batch_size = 16 
-
     train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
     val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
 
-
-
     if rank > -1:
         model = torch.nn.parallel.DistributedDataParallel(model)
-
 
         train_sampler = torch.utils.data.distributed.DistributedSampler(
             train_dataset, num_replicas=world_size, rank=rank)
         val_sampler = torch.utils.data.distributed.DistributedSampler(
             val_dataset, num_replicas=world_size, rank=rank)
 
-        # dataloader = DataLoader(dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8)
         train_loader = DataLoader(train_dataset, sampler = train_sampler, batch_size = config['batch_size'], num_workers=8, drop_last=True)
         val_loader = DataLoader(val_dataset, sampler = val_sampler, batch_size = config['batch_size'], num_workers=8, drop_last = True)
         
@@ -139,14 +125,14 @@ def train_ddp(rank, world_size):
 
             optimizer.zero_grad(set_to_none=True) 
 
-            with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
-                logits = model(x_i) 
+            # with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
+            logits = model(x_i) 
 
-                B, L, C = logits.shape
-                logits = logits.view(B*L, C) 
-                targets = y_i.view(B*L) 
+            B, L, C = logits.shape
+            logits = logits.view(B*L, C) 
+            targets = y_i.view(B*L) 
 
-                loss = F.cross_entropy(logits, targets) 
+            loss = F.cross_entropy(logits, targets) 
 
             loss.backward()
             htcore.mark_step()
@@ -176,3 +162,7 @@ if __name__ == "__main__":
     world_size = 2
     run_demo(train_ddp, world_size)    
     # train_ddp()
+
+
+    # Issue 
+    # HabanaGraph::validateNode failed gc op validation for node: module/sdpa_recomp_fwd_f32/57_complex/sdpa_recomp_fwd_f32_1/sdpa_recomp_core_fwd_f32_0/batch_gemm_16, guid: batch_gemm

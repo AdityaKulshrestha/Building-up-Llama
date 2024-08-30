@@ -19,19 +19,22 @@ tokenizer = AutoTokenizer.from_pretrained('sarvamai/sarvam-2b-v0.5', trust_remot
 # print(tokenizer.vocab_size)
 
 
-# text = 'हिंदी एक सुंदर भाषा'
-# text = """मेरा नाम आदित्य"""
-text = """कृपया बताएं कि मैं आपकी किस प्रकार से"""
-# text = """एक बार की बात है,"""
-# text = """आज सुबह मैं पार्क में टहलने गया, जहाँ मैंने """
-# text = '''पश्चिम बंगाल के राज्यपाल स्व० एच० मी० मुखर्जी एवं लोकसभा के अध्यक्ष स्व० अनन्त शायनम आयगर के साथ श्री सीतारामजी उन्होंने विश्वविद्यालय में शिक्षा नही पाई, फिर भी बगाल की तेजस्विता के बीच अपने को प्रतिष्ठित किया है और मुक्ति आन्दोलन के महान् कर्णधारो का अजस्र स्नेह पाया है। जिस समय राजनीति का अर्थ सेवा '''
+texts = [
+    'हिंदी एक सुंदर भाषा', 
+    """मेरा नाम आदित्य""", 
+    """कृपया बताएं कि मैं आपकी किस प्रकार से""", 
+    """एक बार की बात है,""", 
+    """आज सुबह मैं पार्क में टहलने गया, जहाँ मैंने """, 
+    '''पश्चिम बंगाल के राज्यपाल स्व० एच० मी० मुखर्जी एवं लोकसभा के अध्यक्ष स्व० अनन्त शायनम आयगर के साथ श्री सीतारामजी उन्होंने विश्वविद्यालय में शिक्षा नही पाई, फिर भी बगाल की तेजस्विता के बीच अपने को प्रतिष्ठित किया है और मुक्ति आन्दोलन के महान् कर्णधारो का अजस्र स्नेह पाया है। जिस समय राजनीति का अर्थ सेवा ''', 
+]
 
+id = 0
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-tokenized_text = tokenizer(text, padding = 'max_length', max_length=128,)['input_ids']
+tokenized_text = tokenizer(texts[id], padding = 'max_length', max_length=128,)['input_ids']
 
 
 tokenized_text = torch.tensor([tokenized_text])
-print(tokenized_text.shape)
+print("Shape of input tensor: ", tokenized_text.shape)
 
 tokenized_text = tokenized_text.to(torch.device('hpu'))
 
@@ -47,34 +50,4 @@ for i in range(max_new_tokens):
     tokenized_text = torch.cat((tokenized_text, idx_next), dim=1)
     output_token = tokenizer.decode(idx_next.cpu().numpy()[0])
     print(output_token, end=" ") 
-
-
-
-
-
-# Working for a single token
-"""
-with torch.no_grad():
-    output =  model(tokenized_text)
-
-print(output)
-output = output[:, -1, :]           # Selecting the last generated token
-print(output)
-
-probs = F.softmax(output, dim = -1)
-print(probs)
-idx_next = torch.multinomial(probs, num_samples=1)
-print(idx_next)
-output_token= tokenizer.decode(idx_next.cpu().numpy()[0])
-print(output_token)
-            # logits = logits[:, -1, :] # become(B, C) 
-            # apply softmax to get probabilities 
-            # probs = F.softmax(logits, dim = -1)      # (B, C) 
-            # sample from the distribution 
-            # idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1) 
-            # append sampled index to the running sequence 
-            # idx = torch.cat((idx, idx_next), dim = 1)  # (B, T+1)
-            # print(decode(idx.cpu().numpy()[0]))
-# output_text = tokenizer.decode(output)
-"""
 

@@ -52,7 +52,7 @@ def train():
     model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
     model = model.to(config['device'])
     print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
-    
+
     optimizer = FusedAdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
@@ -61,8 +61,8 @@ def train():
     train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
     val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
 
-    train_dataloader = DataLoader(train_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      # Drops the last batch if the size is smaller than the given
-    val_dataloader = DataLoader(val_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      # Drops the last batch if the size is smaller than the given
+    train_dataloader = DataLoader(train_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)    
+    val_dataloader = DataLoader(val_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      
 
     for iter in range(config['train_iter']):
         # xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
