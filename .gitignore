@@ -1,2 +1,7 @@
 inference/model_dir/consolidated.00.pth
 assests/
+training/.habana_logs/ 
+training/__pycache__/ 
+training/ckpt_dir/ 
+training/data/*.bin 
+training/*.out 
