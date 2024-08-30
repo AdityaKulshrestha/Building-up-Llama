@@ -69,14 +69,14 @@ LlamaForCausalLM(
 
 # Model parameters 
 config = {
-'vocab_size': 30000,
+'vocab_size': 64128,
 'dim': 4096, 
 'num_layer': 8, 
 'rms_eps': 1e-6,
 'n_heads': 32,
 'base': 10000, 
 'scaling_factor': 1.0,
-'seq_len': 512
+'seq_len': 128
 }
 
 

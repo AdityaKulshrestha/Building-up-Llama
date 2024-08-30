@@ -5,7 +5,6 @@
 </p>
 
 
-
 Mooshak is a Large Language Model, written completely from sratch in Pytorch. The model is trained on a corpus of mix of Hindi and English Corpus. 
 
 ## Architectural Modifications in Mooshak 
