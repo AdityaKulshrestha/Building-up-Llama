@@ -3,6 +3,36 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader 
 
 
+# Deprecated functions
+def get_batch_size(length, batch_length, cntx_len):
+    total_batches = int(length / (batch_length*cntx_len))
+    return total_batches
+
+# Deprecated functions
+def get_batch(data_dir, split, batch_size, block_size, device): 
+    # We recreate np.memmap every batch to avoid a memory leak
+    logger.info("Processing Dataset!")
+    if split=='train': 
+        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440
+
+    else: 
+        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+
+        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
+
+
+    ix = torch.randint(len(data) - block_size, (len(data)//block_size,))
+    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in tqdm(ix)])
+    x = x[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
+    x = x.view(-1, batch_size, block_size)
+    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in tqdm(ix)])
+    y = y[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
+    y = y.view(-1, batch_size, block_size)
+    # x, y = x.to(device), y.to(device)
+    return x,y 
+
+
 class LoadTextCorpus(Dataset): 
     def __init__(self, data_path, seq_length): 
         """

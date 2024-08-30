@@ -9,6 +9,9 @@ import habana_frameworks.torch.core as htcore
 from datasets import load_dataset
 from model import Llama 
 from habana_frameworks.torch.hpex.optimizers import FusedAdamW
+from utils import LoadTextCorpus
+from torch.utils.data import Dataset, DataLoader 
+
 
 import logging
 
@@ -27,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 config = {
+    'train_data': 'data/train.bin', 
+    'val_data': 'data/val.bin',
     'train_iter': 1, 
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
@@ -43,48 +48,26 @@ config = {
 }
 
 
-def get_batch_size(length, batch_length, cntx_len):
-    total_batches = int(length / (batch_length*cntx_len))
-    return total_batches
-
-
-def get_batch(data_dir, split, batch_size, block_size, device): 
-    # We recreate np.memmap every batch to avoid a memory leak
-    logger.info("Processing Dataset!")
-    if split=='train': 
-        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
-        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440
-
-    else: 
-        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
-
-        total_batch = get_batch_size(len(data), batch_size, block_size)           # Default 440 
-
-
-    ix = torch.randint(len(data) - block_size, (len(data)//block_size,))
-    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in tqdm(ix)])
-    x = x[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
-    x = x.view(-1, batch_size, block_size)
-    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in tqdm(ix)])
-    y = y[:total_batch*batch_size, :]       # HARDCODED RIGHT NOW!
-    y = y.view(-1, batch_size, block_size)
-    # x, y = x.to(device), y.to(device)
-    return x,y 
-
-
 def train():
     model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
     model = model.to(config['device'])
     print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
+    
     optimizer = FusedAdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr']) 
     scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
 
-    for iter in range(config['train_iter']):
-        xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+    # Load dataset 
+    train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
+    val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
 
-        for i, (x_i, y_i) in enumerate(tqdm(zip(xb, yb), total=xb.shape[0])):
+    train_dataloader = DataLoader(train_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      # Drops the last batch if the size is smaller than the given
+    val_dataloader = DataLoader(val_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      # Drops the last batch if the size is smaller than the given
+
+    for iter in range(config['train_iter']):
+        # xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
+
+        for i, (x_i, y_i) in enumerate(train_dataloader):
             x_i, y_i = x_i.to(config['device']), y_i.to(config['device'])
 
             
@@ -95,10 +78,9 @@ def train():
             B, L, C = logits.shape
             logits = logits.view(B*L, C)
             targets = y_i.view(B*L)
-            # print(f"Logit shape : {logits.shape} Target Shape : {targets.shape}")
+
             loss = F.cross_entropy(logits, targets)
             current_lr = scheduler.get_last_lr()
-            # print("Final Loss: ", loss.item())    
 
             print(f'Learning Rate: {current_lr[0]:2f}')
             print(f'Epoch {i + 1}, Final Loss: {loss.item():2f}')
@@ -113,9 +95,8 @@ def train():
             scheduler.step()
 
             if i % config['save_freq'] == 0 and i!=0:
-                x_val, y_val = get_batch(config['data_dir'], 'val', config['batch_size'], config['block_size'], config['device'])
                 total_validation_loss = 0
-                for _, (x_i_val, y_i_val) in enumerate(tqdm(zip(x_val, y_val), total=x_val.shape[0])):
+                for _, (x_i_val, y_i_val) in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
                     x_i_val, y_i_val = x_i_val.to(config['device']), y_i_val.to(config['device'])
                     with torch.no_grad():
                         logits = model(x_i_val)
@@ -128,7 +109,7 @@ def train():
 
 
 
-                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{total_validation_loss/x_val.shape[0]:2f}.pth')
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{total_validation_loss/len(val_dataloader).shape[0]:2f}.pth')
 
 
     

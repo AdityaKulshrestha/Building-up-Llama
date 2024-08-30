@@ -44,7 +44,10 @@ config = {
     'batch_size': 16,
     'block_size': 128, 
     'lr': 3e-4,
-    'save_freq': 1000
+    'save_freq': 1000, 
+    'vocab_size': 64128, 
+    'device': torch.device('hpu')
+
 }
 
 
@@ -53,6 +56,7 @@ config = {
 # Store these get_batch and get_batch_size in utils
 # Implement optimized AdamW (giving error in graph build)
 
+# Deprecated
 def init_distributed_mode():
     world_size = 0 
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -91,10 +95,11 @@ def count_parameters(model):
 
 
 def train_ddp(rank, world_size):
-    device = torch.device('hpu')
     setup(rank, world_size)
     # _, rank = init_distributed_mode()
-    model = Llama().to(device)
+    model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
+    model = model.to(config['device'])
+
 
     # optimizer = FusedAdamW(model.parameters(), lr = config['lr'])
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr']) 
