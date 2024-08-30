@@ -90,6 +90,15 @@ def count_parameters(model):
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return params/1000000000
 
+def save_checkpoint(model, optimizer, iteration, loss, filename):
+    checkpoint = {
+        'model_state_dict': model.module.state_dict() if isinstance(model, DDP) else model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'iteration': iteration,
+        'loss': loss
+    }
+    torch.save(checkpoint, filename)
+
 
 def train_ddp(rank, world_size):
     setup(rank, world_size)
@@ -102,7 +111,8 @@ def train_ddp(rank, world_size):
     scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
 
     parameters = count_parameters(model)
-    print(f"Total Parameters: {parameters} B")
+    if rank==0:         # Prints it only one time
+        print(f"Total Parameters: {parameters} B")
 
     train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
     val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
@@ -141,10 +151,12 @@ def train_ddp(rank, world_size):
             optimizer.step()
             htcore.mark_step()
 
-            print(f"Iter : {i} Loss: {loss.item()}")
+            if rank==0:         # Prints it only one time
+                print(f"Iter : {i} Loss: {loss.item()}")
 
-            if (i % config['save_freq'] == 0) and i!=0: 
-                torch.save(model.state_dict(), f'ckpt_dir/model_iter{i}_loss_{loss.item():2f}')
+            if (i % config['save_freq'] == 0) and i != 0 and rank == 0: 
+                save_checkpoint(model, optimizer, i, loss.item(), 
+                                f'{config["save_dir"]}/model_DDP_iter{i}_loss_{loss.item():.2f}.pt')
 
         cleanup()
 

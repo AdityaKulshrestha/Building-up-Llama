@@ -36,7 +36,7 @@ config = {
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 16,
+    'batch_size': 64,
     'block_size': 128, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
@@ -65,7 +65,6 @@ def train():
     val_dataloader = DataLoader(val_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      
 
     for iter in range(config['train_iter']):
-        # xb, yb = get_batch(config['data_dir'], 'train', config['batch_size'], config['block_size'], config['device'])
 
         for i, (x_i, y_i) in enumerate(train_dataloader):
             x_i, y_i = x_i.to(config['device']), y_i.to(config['device'])
