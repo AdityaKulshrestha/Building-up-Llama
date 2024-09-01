@@ -95,15 +95,15 @@ def train():
 
             if i % config['save_freq'] == 0 and i!=0:
                 total_validation_loss = 0
-                # for _, (x_i_val, y_i_val) in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
-                #     x_i_val, y_i_val = x_i_val.to(config['device']), y_i_val.to(config['device'])
-                #     with torch.no_grad():
-                #         logits = model(x_i_val)
-                #         B, L, C = logits.shape
-                #         logits = logits.view(B*L, C)
-                #         targets = y_i_val.view(B*L)
-                #         val_loss = F.cross_entropy(logits, targets)
-                #         total_validation_loss += val_loss.item()
+                for _, (x_i_val, y_i_val) in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
+                    x_i_val, y_i_val = x_i_val.to(config['device']), y_i_val.to(config['device'])
+                    with torch.no_grad():
+                        logits = model(x_i_val)
+                        B, L, C = logits.shape
+                        logits = logits.view(B*L, C)
+                        targets = y_i_val.view(B*L)
+                        val_loss = F.cross_entropy(logits, targets)
+                        total_validation_loss += val_loss.item()
 
 
 
