@@ -57,3 +57,11 @@ graph TD
 
     Config[<u>Model Configuration</u><br/>vocab_size: 64128<br/>dim: 4096<br/>num_layers: 8<br/>n_heads: 32<br/>seq_len: 128]
 ```
+
+
+## Memory Consumption
+
+- batch_size: 32 
+- context length: 128 
+- VRAM utiliazation (inference) - 40176 MB 
+- Training utilization (training) - 94000 (something)

@@ -39,14 +39,15 @@ config = {
     'save_dir': 'ckpt_dir', 
     'device': torch.device('hpu'), 
     'data_dir': 'data', 
-    'batch_size': 16,
-    'block_size': 128, 
+    'batch_size': 8,
+    'block_size': 2048, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
     'weight_decay': 1e-1, 
     'beta1': 0.9, 
     'beta2': 0.95, 
-    'save_freq': 1000, 
+    'save_freq': 10000, 
+    'intermediate_dim': 11008,
     'vocab_size': 64128, 
 }
 
@@ -176,6 +177,3 @@ if __name__ == "__main__":
     run_demo(train_ddp, world_size)    
     # train_ddp()
 
-
-    # Issue 
-    # HabanaGraph::validateNode failed gc op validation for node: module/sdpa_recomp_fwd_f32/57_complex/sdpa_recomp_fwd_f32_1/sdpa_recomp_core_fwd_f32_0/batch_gemm_16, guid: batch_gemm

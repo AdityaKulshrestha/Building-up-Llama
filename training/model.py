@@ -76,7 +76,8 @@ config = {
 'n_heads': 32,
 'base': 10000, 
 'scaling_factor': 1.0,
-'seq_len': 128
+'seq_len': 128, 
+'intermediate_dim': 11008
 }
 
 
@@ -172,7 +173,7 @@ class Attention(nn.Module):
 
 class MLP(nn.Module): 
 
-    def __init__(self, dim: int = 4096, hidden_dim: int = 14336):
+    def __init__(self, dim: int = 4096, hidden_dim: int = 11008):
         super().__init__()
 
         self.w1 = nn.Linear(dim, hidden_dim, bias=False) 
@@ -202,10 +203,10 @@ class RMS(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, dim: int = 4096, n_heads: int = 16):
+    def __init__(self, dim: int = 4096, n_heads: int = 16, hidden_dim: int = 11008):
         super().__init__()
         self.attention = Attention(dim=dim, n_heads=n_heads)                                    # Change this head_size to the multihead size
-        self.mlp = MLP()
+        self.mlp = MLP(hidden_dim=hidden_dim)
         self.attn_rms = RMS()
         self.ffn_rms = RMS()
 
