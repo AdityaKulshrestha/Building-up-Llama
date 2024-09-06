@@ -26,8 +26,6 @@ logging.basicConfig(
 # Create logger
 logger = logging.getLogger(__name__)
 
-# Task - Change the pytorch optimizer 
-
 
 config = {
     'train_data': 'data/train.bin', 
