@@ -11,6 +11,63 @@ Mooshak is a Large Language Model, written completely from sratch in Pytorch. Th
 Mooshak is mainly inspired from Llama Architecture and incorporates a custom layers and architecture. 
 The overall size of the model is ~ 2 Billion
 
+## Architecture 
+
+```mermaid
+graph TD
+    Input[Input Tokens] --> Embeddings[Embeddings Layer]
+    Embeddings --> DecoderStack[Decoder Stack]
+    DecoderStack --> LMHead[Language Model Head]
+    LMHead --> Output[Output Logits]
+
+    subgraph DecoderStack
+        D1[Decoder Layer 1]
+        D2[Decoder Layer 2]
+        D3[Decoder Layer 3]
+        DN[Decoder Layer 8]
+        D1 --> D2
+        D2 --> D3
+        D3 --> |...| DN
+    end
+
+    subgraph DecoderLayer[Decoder Layer]
+        Input2[Layer Input] --> AttentionBlock[Attention Block]
+        AttentionBlock --> Add1[Add]
+        Input2 --> Add1
+        Add1 --> RMSNorm1[RMS Norm]
+        RMSNorm1 --> MLPBlock[MLP Block]
+        MLPBlock --> Add2[Add]
+        Add1 --> Add2
+        Add2 --> RMSNorm2[RMS Norm]
+        RMSNorm2 --> Output2[Layer Output]
+    end
+
+    subgraph AttentionBlock
+        QKV[Q, K, V Linear Layers]
+        RoPE[Rotary Position Embedding]
+        SDPA[Scaled Dot-Product Attention]
+        QKV --> RoPE
+        RoPE --> SDPA
+    end
+
+    subgraph MLPBlock
+        W1[Linear w1]
+        W2[Linear w2]
+        W3[Linear w3]
+        Swish[SiLU Activation]
+        W1 --> Swish
+        W3 --> Multiply
+        Swish --> Multiply
+        Multiply --> W2
+    end
+
+    classDef config fill:#f9f,stroke:#333,stroke-width:2px;
+    class Config config;
+
+    Config[<u>Model Configuration</u><br/>vocab_size: 64128<br/>dim: 4096<br/>num_layers: 8<br/>n_heads: 32<br/>seq_len: 2048]
+```
+
+
 ### RoPE
 RoPE stands for Rotatory Positional Embedding. 
 
@@ -21,22 +78,6 @@ Previous solution for positional encoding:
 Why RoPE was introduced?
 - Original positional encoding methods were limited in sequence length due to the fact that they were trained on limited size data. 
 - The absolute positional encoding (sinusoidal encodings) didn't contain the information about the relative position of tokens. 
-
-#### Original Attention Mechanism
-Absolute positional encoding 
-$$
-\text{PE}_{\text{pos}, 2i} = \sin \left( \frac{\text{pos}}{10000^{2i/d_{\text{model}}}} \right)$$
-
-$$\text{PE}_{\text{pos}, 2i+1} = \cos \left( \frac{\text{pos}}{10000^{2i/d_{\text{model}}}} \right)$$
-_where i is the index of the token and is the dimension of the embedding._
-
-**Final Embeddings = Original Embeddings + Absolute Positional Encoding** 
-
-#### Attention Mechanism in RoPE
-Query Vector = $(W_{q}x_{m})e^{im\theta}$
-
-Key Vector = $(W_{k}x_{n})e^{in\theta}$
-
 
 
 ## Checklist 
