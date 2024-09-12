@@ -5,13 +5,12 @@ import torch.nn as nn
 from tqdm import tqdm 
 import math 
 from torch.nn import functional as F 
-from transformers import AutoTokenizer
 import habana_frameworks.torch.core as htcore
 from datasets import load_dataset
 from model import Llama 
 from habana_frameworks.torch.hpex.optimizers import FusedAdamW
-from utils import LoadTextCorpus
-from torch.utils.data import Dataset, DataLoader 
+from data_preprocessing.dataloader import CustomDataset
+from torch.utils.data import Dataset, DataLoader, random_split
 
 
 import logging
@@ -39,7 +38,7 @@ config = {
     'block_size': 2048, 
     'min_lr': 3e-5,
     'max_lr': 3e-4,
-    'save_freq': 10000, 
+    'save_freq': 1000, 
     'weight_decay': 1e-1, 
     'beta1': 0.9, 
     'beta2': 0.95, 
@@ -63,10 +62,13 @@ def get_lr(it):
     return  config['min_lr'] + coeff * (config['max_lr'] - config['min_lr'])
 
 
-def train():
+def finetune():
+    ckpt_path = '../training/ckpt_dir/model_30000_loss_2.949655.pth'
     model = Llama(vocab_size = config['vocab_size'], seq_len = config['block_size'])
+    model.load_state_dict(torch.load(ckpt_path))
     model = model.to(config['device'])
     print(sum(p.numel() for p in model.parameters())/1e9, 'Billion parameters')
+
 
     optimizer = FusedAdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=config['min_lr'], betas=(config['beta1'], config['beta2']), eps=1e-08, weight_decay=config['weight_decay'])
@@ -75,46 +77,52 @@ def train():
     # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=config['min_lr'], max_lr=config['max_lr'], step_size_up=10000, mode='exp_range')
 
     # Load dataset 
-    train_dataset = LoadTextCorpus(config['train_data'], config['block_size'])
-    val_dataset = LoadTextCorpus(config['val_data'], config['block_size'])
+
+    dataset = CustomDataset()
+
+    train_size = int(0.8 * len(dataset))  # 80% for training
+    val_size = len(dataset) - train_size   # 20% for validation
+
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
     train_dataloader = DataLoader(train_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)    
     val_dataloader = DataLoader(val_dataset, batch_size = config['batch_size'], shuffle=True, num_workers=8, drop_last=True)      
+
+    # print(next(iter(val_dataloader)))
 
     for it in range(config['train_iter']):
         t = tqdm(range(len(train_dataloader)), desc="Training", unit="iteration")
         for i, (x_i, y_i) in enumerate(train_dataloader):
             x_i, y_i = x_i.to(config['device']), y_i.to(config['device'])
 
+            tokenized_text = torch.cat((x_i, y_i), dim=1)
 
-            lr = get_lr(i)
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            
+            for token_idx in range(config['block_size']//2):
+                x_i = tokenized_text[:,token_idx:config['block_size']+token_idx].contiguous()
+                y_i = tokenized_text[:,token_idx+1:config['block_size']+token_idx+1].contiguous()
 
-            # with torch.autocast(device_type='hpu', dtype=torch.bfloat16):
-            logits = model(x_i)
-            B, L, C = logits.shape
-            logits = logits.view(B*L, C)
-            targets = y_i.view(B*L)
+                logits = model(x_i)
+                B, L, C = logits.shape
+                logits = logits.view(B*L, C)
+                targets = y_i.view(B*L)
 
-            loss = F.cross_entropy(logits, targets)
+                loss = F.cross_entropy(logits, targets)
             # current_lr = scheduler.get_last_lr()
 
 
 
             # print(f'Learning Rate: {current_lr[0]:2f}')
-            # print(f'Epoch {i + 1}, Final Loss: {loss.item():2f}')
-            t.set_postfix({'Epoch': f"{i + 1}", 'Final Loss': f"{loss.item():2f}", 'Learning Rate': f'{lr:2f}'})
-            
+                # print(f'Epoch {i + 1}, Batch Count {token_idx}, Final Loss: {loss.item():2f}')
+                t.set_postfix({'Epoch': f"{i + 1}", 'Final Loss': f"{loss.item():2f}"})
+                
 
-            loss.backward() 
-            htcore.mark_step()
+                loss.backward() 
+                htcore.mark_step()
 
-            optimizer.step() 
-            htcore.mark_step()
+                optimizer.step() 
+                htcore.mark_step()
 
-            optimizer.zero_grad(set_to_none = True) 
+                optimizer.zero_grad(set_to_none = True) 
 
             # scheduler.step()
 
@@ -122,18 +130,22 @@ def train():
                 total_validation_loss = 0
                 for _, (x_i_val, y_i_val) in enumerate(tqdm(val_dataloader, total=len(val_dataloader))):
                     x_i_val, y_i_val = x_i_val.to(config['device']), y_i_val.to(config['device'])
-                    with torch.no_grad():
-                        logits = model(x_i_val)
-                        B, L, C = logits.shape
-                        logits = logits.view(B*L, C)
-                        targets = y_i_val.view(B*L)
-                        val_loss = F.cross_entropy(logits, targets)
-                        total_validation_loss += val_loss.item()
+                    tokenized_text = torch.cat((x_i_val, y_i_val), dim=1)
+                    for token_idx in range(config['block_size']//2):
+                        x_i_val = tokenized_text[:,token_idx:config['block_size']+token_idx]
+                        y_i_val = tokenized_text[:,token_idx+1:config['block_size']+token_idx+1]
+                        with torch.no_grad():
+                            logits = model(x_i_val)
+                            B, L, C = logits.shape
+                            logits = logits.view(B*L, C)
+                            targets = y_i_val.view(B*L)
+                            val_loss = F.cross_entropy(logits, targets)
+                            total_validation_loss += val_loss.item()
 
 
 
 
-                torch.save(model.state_dict(), f'{config["save_dir"]}/model_{i}_loss_{total_validation_loss/len(val_dataloader):2f}.pth')
+                torch.save(model.state_dict(), f'{config["save_dir"]}/model_finetuned_{i}_loss_{total_validation_loss/len(val_dataloader):2f}.pth')
 
 
     
@@ -141,8 +153,11 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    finetune()
 
+    # t.set_postfix({'Epoch': f"{i + 1}", 'Final Loss': f"{loss.item():2f}", 'Learning Rate': f'{lr:2f}'})
+    # RuntimeError: Graph compile failed. synStatus=synStatus 26 [Generic failure]. 
+    # B, L, C = 8, 1024, 64128
 
 
 

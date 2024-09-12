@@ -22,10 +22,12 @@ dataset_name = 'ai4bharat/sangraha'
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 bos_token = tokenizer.bos_token
 eos_token = tokenizer.eos_token
+# tokenizer.add_special_tokens({'pad_token': '[PAD]'})           Doesn't change the vocab size 
+# print(tokenizer(tokenizer.pad_token).input_ids)
 
 
 def process(example): 
-    text = bos_token+example['text']+eos_token        # eos and bos token added!
+    text = example['text']+eos_token        # eos and bos token added!
     ids = tokenizer(text)['input_ids']
     out = {'ids': ids, 'len': len(ids)}
     return out 

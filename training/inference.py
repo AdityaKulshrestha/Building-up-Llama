@@ -7,11 +7,11 @@ from torch.nn import functional as F
 
 config = {
     'vocab_size': 64128, 
-    'block_size': 128
+    'block_size': 2048
 }
 
 model = Llama(vocab_size=config['vocab_size'], seq_len = config['block_size']) 
-model.load_state_dict(torch.load('ckpt_dir/model_160000_loss_2.838333.pth'))
+model.load_state_dict(torch.load('ckpt_dir/model_30000_loss_2.949655.pth'))
 
 tokenizer = AutoTokenizer.from_pretrained('sarvamai/sarvam-2b-v0.5', trust_remote_code=True)
 # print(tokenizer.encode(tokenizer.bos_token))
@@ -28,9 +28,9 @@ texts = [
     '''पश्चिम बंगाल के राज्यपाल स्व० एच० मी० मुखर्जी एवं लोकसभा के अध्यक्ष स्व० अनन्त शायनम आयगर के साथ श्री सीतारामजी उन्होंने विश्वविद्यालय में शिक्षा नही पाई, फिर भी बगाल की तेजस्विता के बीच अपने को प्रतिष्ठित किया है और मुक्ति आन्दोलन के महान् कर्णधारो का अजस्र स्नेह पाया है। जिस समय राजनीति का अर्थ सेवा ''', 
 ]
 
-id = 4
+id = 1
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-tokenized_text = tokenizer(texts[id], padding = 'max_length', max_length=128,)['input_ids']
+tokenized_text = tokenizer(texts[id], padding = 'max_length', max_length=config['block_size'],)['input_ids']
 
 
 tokenized_text = torch.tensor([tokenized_text])
@@ -40,7 +40,7 @@ tokenized_text = tokenized_text.to(torch.device('hpu'))
 
 max_new_tokens = 64
 for i in range(max_new_tokens): 
-    tokenized_text = tokenized_text[:, -128:]            # Seq Len/ Block Size 
+    tokenized_text = tokenized_text[:, -config['block_size']:]            # Seq Len/ Block Size 
     with torch.no_grad(): 
         output = model(tokenized_text) 
     last_output = output[:, -1,:]

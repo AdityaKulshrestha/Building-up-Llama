@@ -5,3 +5,7 @@ training/__pycache__/
 training/ckpt_dir/ 
 training/data/*.bin 
 training/*.out 
+finetuning/.habana_logs 
+finetuning/__pycache__ 
+finetuning/data_preprocessing/__pycache__ 
+finetuning/ckpt_dir 
